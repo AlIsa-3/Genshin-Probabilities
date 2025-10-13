@@ -37,9 +37,37 @@ def _account_for_soft_pity(current_pity: int, banner_pity: int) -> bool:
         return random_number == 6
 
 
+def _account_for_capturing_radiance(CR_score: int) -> tuple[int, bool]:
+    """
+    Accounts for the new Capturing Radiance system based on data found here:
+    https://www.reddit.com/r/Genshin_Impact/comments/1hd1sqa/understanding_genshin_impacts_capturing_radiance/
+
+    Args:
+    * CR_score is an integer representing the counter defined at the source
+
+    Returns:
+    * CR_score: the updated value depending on the function's evaluation
+    * A boolean representing whether Capturing Radiance has activated or not
+
+    Raises:
+    None
+
+    """
+
+    if CR_score == 3:
+        CR_score = 1
+        return CR_score, True
+    else:
+        CR_score += 1
+        return CR_score, False
+
+
 def _one_wish(
-    current_pity: int, banner_pity: int, isGuaranteed: bool
-) -> Tuple[bool, int, bool]:
+    current_pity: int,
+    banner_pity: int,
+    isGuaranteed: bool,
+    CR_score: int,
+) -> Tuple[bool, int, bool, int]:
     """
     * Simulates a single wish
 
@@ -47,20 +75,25 @@ def _one_wish(
     * current_pity is an integer representing the current pity on the banner
     * banner_pity is an integer representing the value for the hard pity on a banner ( the number at which a 5-star is guaranteed)
     * isGuaranteed is a boolean value defining whether the limited 5-star character is guaranteed as the next 5-star obtained
+    * CR_score is an integer representing the current Capturing Radiance score
 
     * Returns:
-    * A tuple of 3 values ( types: (bool,int,bool) ) in this order:
+    * A tuple of 4 values ( types: (bool,int,bool,int) ) in this order:
         * whether a 5-star was obtained (bool),
         * the new current pity (int),
-        *whether the next 5-star is guaranteed to be limited (bool)
+        * whether the next 5-star is guaranteed to be limited (bool)
+        * Capturing Radiance Score
 
     Raises:
     None
     """
 
     def five_star(
-        current_pity: int, isGuaranteed: bool, isLimited_5_star: bool
-    ) -> Tuple[bool, int, bool]:
+        current_pity: int,
+        isGuaranteed: bool,
+        isLimited_5_star: bool,
+        CR_score: int,
+    ) -> Tuple[bool, int, bool, int]:
         """
         Encapsulates the logic for determining whether a 5-star obtained is limited or not
         """
@@ -75,17 +108,17 @@ def _one_wish(
             # Limited was obtained so update flag
             isLimited_5_star = True
 
-            return isLimited_5_star, current_pity, isGuaranteed
+            return isLimited_5_star, current_pity, isGuaranteed, CR_score
 
         # Otherwise have to determine outcome with 50/50 probability
         else:
             # Find result of the 50/50 either True or False
-            isLimited_5_star = _fifty_fifty()
+            isLimited_5_star, CR_score = _fifty_fifty(CR_score=CR_score)
 
             # If hit became True, no longer guaranteed. Otherwise if hit is False, the next 5-star is guaranteed to be limited
             isGuaranteed = not isLimited_5_star
 
-            return isLimited_5_star, current_pity, isGuaranteed
+            return isLimited_5_star, current_pity, isGuaranteed, CR_score
 
     # Boolean value representing whether a 5-star was obtained on this current wish initialized to False
     isLimited_5_star: bool = False
@@ -99,31 +132,39 @@ def _one_wish(
             current_pity=current_pity,
             isGuaranteed=isGuaranteed,
             isLimited_5_star=isLimited_5_star,
+            CR_score=CR_score,
         )
 
     # If no 5-star obtained, pity increases by 1 while the other values remain unchanged
     else:
         current_pity += 1
 
-        return isLimited_5_star, current_pity, isGuaranteed
+        return isLimited_5_star, current_pity, isGuaranteed, CR_score
 
 
-def _fifty_fifty() -> bool:
+def _fifty_fifty(CR_score: int) -> tuple[bool, int]:
     """
     Randomly Selects a choice of either True or False.
     * True represents getting a limited 5-star
     * False represents not getting a limited 5-star
 
     Args:
-    None
+    * CR_score is an integer representing the Capturing Radiance score
 
     Returns:
-    * bool either True or False
+    * Tuple (length 2) containing a bool either True or False and an integer representing the Capturing Radiance Score
 
     Raises:
     None
     """
-    return random.choice([True, False])
+
+    selection: bool = random.choice([True, False])
+
+    # If False is chosen try Capturing Radiance
+    if selection == False:
+        CR_score, selection = _account_for_capturing_radiance(CR_score)
+
+    return selection, CR_score
 
 
 def _one_run(
@@ -132,6 +173,7 @@ def _one_run(
     current_pity: int,
     banner_pity: int,
     isGuaranteed: bool,
+    CR_score: int,
 ) -> bool:
     """
     Simulates one run of wishes.
@@ -142,6 +184,7 @@ def _one_run(
     * current_pity is an int corresponding to the current pity on the banner
     * banner_pity is an int representing the hard-pity value for the banner
     * isGuaranteed is a boolean, True if the next 5-star is guaranteed to be limited, False otherwise.
+    * CR_score is an integer representing the current Capturing Radiance score
 
     Returns:
     * A boolean value, True if the number of limited 5-stars obtained was at least target_limited_5_stars.
@@ -156,10 +199,11 @@ def _one_run(
     # Simulate each wish
     for _ in range(number_of_wishes):
         # Obtain the results of the wish
-        wish_results: Tuple[bool, int, bool] = _one_wish(
+        wish_results: Tuple[bool, int, bool, int] = _one_wish(
             current_pity=current_pity,
             banner_pity=banner_pity,
             isGuaranteed=isGuaranteed,
+            CR_score=CR_score,
         )
 
         # Update Values:
@@ -172,6 +216,9 @@ def _one_run(
         # Final value of wish_results is a boolean. True if the next 5-star is guaranteed to be limited,
         # False otherwise.
         isGuaranteed = wish_results[2]
+
+        # Update CR_score
+        CR_score = wish_results[3]
 
     # After Running simulation of wishes, return a boolean.
     # True if at least the target number of limited 5-stars was obtained,
@@ -186,6 +233,7 @@ def simulation(
     banner_pity: int,
     isGuaranteed: bool,
     number_of_simulations: int = 10000,
+    CR_score: int = 1,
 ) -> float:
     """
     Monte-Carlo probability approximation for the probability of getting at least a specified number of limited 5-stars
@@ -199,6 +247,8 @@ def simulation(
     * isGuaranteed is a boolean, True if the next 5-star is guaranteed to be limited, False otherwise
     * number_of_simulations is an integer. It is the number of simulations to run in order to approximate the probability.
         Default is 10000.
+    * CR_score is an integer representing the current Capturing Radiance score.
+        Default = 1
 
     Returns:
     * A float representing the probability of getting target_limited_5_stars limited 5-stars within number_of_wishes wishes
@@ -222,6 +272,7 @@ def simulation(
                 current_pity=current_pity,
                 banner_pity=banner_pity,
                 isGuaranteed=isGuaranteed,
+                CR_score=CR_score,
             )
         )
 
@@ -297,6 +348,13 @@ def main():
         action="store_true",
         help="The next 5-star is guaranteed to be limited",
     )
+    parser.add_argument(
+        "--capturing-radiance",
+        "-cr",
+        type=int,
+        default=1,
+        help="Number of 50/50s lost in a row excluding guarantees",
+    )
 
     # Parse Arguments
     args = parser.parse_args()
@@ -307,6 +365,9 @@ def main():
     current_pity: int = args.current_pity
     banner_pity: int = args.banner_pity
     isGuaranteed: bool = args.guaranteed
+
+    # Capturing Radiance
+    CR_score: int = args.capturing_radiance
 
     # Number of Simulations to Run:
     simulation_count: int = args.simulation_count
@@ -319,6 +380,7 @@ def main():
         banner_pity=banner_pity,
         isGuaranteed=isGuaranteed,
         number_of_simulations=simulation_count,
+        CR_score=CR_score,
     )
 
     # Display the results
