@@ -1,5 +1,6 @@
 # Imports
 import random
+import argparse
 from typing import Tuple
 
 
@@ -225,15 +226,54 @@ def display(
 
 
 def main():
+    # CLI Arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "wish_count",
+        type=int,
+        help="The number of wishes to simulate",
+    )
+    parser.add_argument(
+        "target_5_star_count",
+        type=int,
+        help="The target number of limited 5-stars to obtain",
+    )
+    parser.add_argument(
+        "current_pity",
+        type=int,
+        help="The current pity on the banner",
+    )
+    parser.add_argument(
+        "banner_pity",
+        type=int,
+        help="The value for hard-pity on the banner",
+    )
+    parser.add_argument(
+        "--simulation-count",
+        "-c",
+        type=int,
+        default=10000,
+        help="The number of simulations to run",
+    )
+    parser.add_argument(
+        "--guaranteed",
+        "-g",
+        action="store_true",
+        help="The next 5-star is guaranteed to be limited",
+    )
+
+    # Parse Arguments
+    args = parser.parse_args()
+
     # Simulation Parameters:
-    wish_count: int = 200
-    target_5_star_count: int = 3
-    current_pity: int = 0
-    banner_pity: int = 90
-    isGuaranteed: bool = False
+    wish_count: int = args.wish_count
+    target_5_star_count: int = args.target_5_star_count
+    current_pity: int = args.current_pity
+    banner_pity: int = args.banner_pity
+    isGuaranteed: bool = args.guaranteed
 
     # Number of Simulations to Run:
-    simulation_count: int = 10000
+    simulation_count: int = args.simulation_count
 
     # Calculate the probability of getting the target number of limited 5-stars
     probability: float = simulation(
