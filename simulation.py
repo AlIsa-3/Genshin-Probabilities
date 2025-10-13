@@ -4,6 +4,39 @@ import argparse
 from typing import Tuple
 
 
+def _account_for_soft_pity(current_pity: int, banner_pity: int) -> bool:
+    """
+    Determines whether a 5-star is rolled naturally, accounting for soft-pity.
+
+    Args:
+    * current_pity is an integer respresenting the current pity on the banner
+    * banner_pity is an integer representing the value of hard-pity on the banner
+
+    Returns:
+    * A boolean True or False whether a 5-star was rolled naturally
+
+    Raises:
+    None
+    """
+    # Soft pity starts ~16 away from hard pity
+    soft_pity_value: int = banner_pity - current_pity
+
+    # The chance of getting a 5 star increases by about 6% for every 1 increase in current pity up to banner pity
+    weight_True: float = 0.06 * (1 + 16 - soft_pity_value)
+    # Normalization Condition
+    weight_False: float = 1 - weight_True
+
+    if soft_pity_value <= 16:
+        return random.choices(
+            population=[True, False], weights=[weight_True, weight_False]
+        )[0]
+    else:
+        # 1000 represents 100%
+        random_number: int = random.randint(1, 1000)
+        # If the random integer from 1-1000 is a specific number, that represents obtaining a 5-star
+        return random_number == 6
+
+
 def _one_wish(
     current_pity: int, banner_pity: int, isGuaranteed: bool
 ) -> Tuple[bool, int, bool]:
@@ -58,8 +91,10 @@ def _one_wish(
     isLimited_5_star: bool = False
 
     # If reached hard pity, force obtaining a 5-star
-    # Otherwise if the random integer from 1-1000 is a specific number, that represents obtaining a 5-star
-    if (current_pity == banner_pity) or (random.randint(1, 1000) == 6):
+    # Or if a 5-star is obtained naturally, accounting for soft-pity
+    if (current_pity == banner_pity) or _account_for_soft_pity(
+        current_pity=current_pity, banner_pity=banner_pity
+    ):
         return five_star(
             current_pity=current_pity,
             isGuaranteed=isGuaranteed,
@@ -218,7 +253,8 @@ def display(
     """
     output_string: str = (
         f"The probability of getting {target_5_star_count} limited 5-stars in {number_of_wishes} "
-        f"wishes is approximately {probability:.2%} (Calculated using {simulation_count} simulations)"
+        f"wishes is approximately {probability:.2%} "
+        f"(Calculated using {simulation_count} simulations)"
     )
 
     print(output_string)
