@@ -155,7 +155,21 @@ public class Simulation {
             System.out.print("How many simulations: ");
             simulation_count = Integer.parseInt(input.nextLine());
         }
+
+        
     }
+
+    private Simulation(String[] args){
+
+            wish_count = Integer.parseInt(args[0]);
+            target_5_star_count = Integer.parseInt(args[1]);
+            current_pity = Integer.parseInt(args[2]);
+            banner_pity = Integer.parseInt(args[3]);
+            isGuaranteed = ("Y".equals(args[4].toUpperCase()));
+            simulation_count = Integer.parseInt(args[5]);
+
+
+        }
 
     private void run(){
 
@@ -167,7 +181,15 @@ public class Simulation {
     }
     
     public static void main(String[] args) {
-        Simulation sim = new Simulation();
+        Simulation sim;
+
+        if (args.length < 6){  
+            sim = new Simulation();
+        }
+        else{
+            sim = new Simulation(args);
+        }
+
         sim.run();
     }
 }

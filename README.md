@@ -24,3 +24,7 @@ Download the `Simulation.java` file and place it into a directory. From that dir
 and then run 
 ```java Simulation``` 
 and follow the prompts on the console
+
+Can also be used with arguments supplied via the command-line
+
+```java Simulation [wishCount] [target5StarCount] [currentPity] [bannerPity] [Guaranteed (y/n)] [simulationCount]```
