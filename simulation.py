@@ -1,6 +1,7 @@
 # Imports
 import random
 import argparse
+import math
 
 
 class Simulation:
@@ -19,11 +20,19 @@ class Simulation:
             * Default = 1
         * simulation_count The integer number of trials to simulate
             * Default = 10000
+        * verbose Whether to display more details about the simulation
+            * Default = False
 
         * current_limited_count: An integer representing the current number of limited 5-stars obtained on a given run
         * success_trials: An integer number of trials where the number of limited 5-stars obtained was at least the target
         * success_probability: A float equal to the computed approximate probability of obtaining at least the target number
           of limited 5-stars
+
+        * wishes_taken_single_round_first is an integer representing the number of wishes taken to get the first limited 5-star on one round
+        * average_wishes_taken_first is the ceiling of the average value of wishes_taken_single_round_first across all simulations
+
+        * wishes_taken_single_round is an integer representing the number of wishes taken to achieve the target in a single simulation
+        * average_wishes_taken is the ceiling of the average value of wishes_taken_single_round across all simulations
 
 
     """
@@ -37,6 +46,7 @@ class Simulation:
         isGuaranteed: bool,
         CR_score: int = 1,
         simulation_count: int = 10000,
+        verbose: bool = False,
     ) -> None:
         self.wish_count = wish_count
         self.target_5_star_count = target_5_star_count
@@ -45,12 +55,21 @@ class Simulation:
         self.isGuaranteed = isGuaranteed
         self.CR_score = CR_score
         self.simulation_count = simulation_count
+        self.verbose = verbose
 
         self.current_limited_count: int = 0
         # Number of runs where obtained limited 5-stars is at least the target
         self.success_trials: int = 0
 
         self.success_probability: float = 0
+
+        # Number of wishes taken to achieve target
+        self.wishes_taken_single_round: int = 0
+        self.average_wishes_taken: float = 0
+
+        # Number of wishes to obtain the first limited 5-star
+        self.wishes_taken_single_round_first: int = 0
+        self.average_wishes_taken_first: int = 0
 
     def _account_for_soft_pity(self) -> bool:
         """
@@ -175,13 +194,13 @@ class Simulation:
         None
         """
 
-        selection: bool = random.choice([True, False])
+        isSuccess: bool = random.choice([True, False])
 
         # If False is chosen try Capturing Radiance
-        if selection == False:
-            selection = self._account_for_capturing_radiance()
+        if not isSuccess:
+            isSuccess = self._account_for_capturing_radiance()
 
-        return selection
+        return isSuccess
 
     def _one_run(self) -> bool:
         """
@@ -194,15 +213,37 @@ class Simulation:
             * None
         """
 
-        # The total number of limited 5 stars achieved in one simulation of wishes
+        # So that only the first limited 5-star is counted for the number of wishes taken
+        isFirstLimited: bool = True
+
+        # So that only the first time the target is reached is counted
+        isFirstTargetReached: bool = True
 
         # Simulate each wish
-        for _ in range(self.wish_count):
+        for wish_number in range(self.wish_count):
             # Obtain the results of the wish
-            wish_result: bool = self._one_wish()
+            isLimited5Star: bool = self._one_wish()
+
+            # Record the wish number at which the first limited 5-star is obtained
+            if isLimited5Star and isFirstLimited:
+                isFirstLimited = False
+                self.wishes_taken_single_round_first = wish_number + 1
 
             # Update Current Run Limited 5-star count
-            self.current_limited_count += int(wish_result)
+            self.current_limited_count += int(isLimited5Star)
+
+            # Record the wish number at which the target limited 5-star count is reached
+            if (
+                self.current_limited_count == self.target_5_star_count
+                and isFirstTargetReached
+            ):
+                isFirstTargetReached = False
+                self.wishes_taken_single_round = wish_number + 1
+
+        # If the target was not reached then update wishes taken to be the total number of wishes
+        if isFirstTargetReached:
+            self.wishes_taken_single_round = self.wish_count
+
 
         # After Running simulation of wishes, return a boolean.
         # True if at least the target number of limited 5-stars was obtained,
@@ -217,7 +258,11 @@ class Simulation:
         within a certain amount of wishes.
 
         Returns:
-        * A float representing the probability of getting target_limited_5_stars limited 5-stars within number_of_wishes wishes
+        * None
+        - Updates the value of the success_probability with the probability of getting a specified number of limited 5-stars
+          within a certain amount of wishes
+
+        - Updates the value for the average_wishes_taken to achieve the target in
 
         Raises:
         None
@@ -234,6 +279,12 @@ class Simulation:
             # This means that if the target was met, int(_one_run()) will == 1, otherwise it will == 0
             self.success_trials += int(self._one_run())
 
+            # Add total number of wishes taken for first limited 5-star
+            self.average_wishes_taken_first += self.wishes_taken_single_round_first
+
+            # Add total number of wishes for target 5-star count
+            self.average_wishes_taken += self.wishes_taken_single_round
+
             # Reset values after run
             self.CR_score = original_CR_score
             self.current_limited_count = 0
@@ -245,11 +296,30 @@ class Simulation:
         # This will give the probability of achieving the target number of limited 5-stars within a given number of wishes
         self.success_probability = self.success_trials / self.simulation_count
 
+        # Find out average number of wishes taken
+        # Divide by number of simulations
+        # We want an integer value so we will calculate the ceiling of the resulting division to obtain a value
+        # Average number of wishes to obtain first limited 5-star
+        self.average_wishes_taken_first = math.ceil(
+            self.average_wishes_taken_first / self.simulation_count
+        )
+
+        # Average number of wishes to obtain the target count of limited 5-stars
+        self.average_wishes_taken = math.ceil(
+            self.average_wishes_taken / self.simulation_count
+        )
+        # If the average number of wishes to obtain the target is 0 --> it means the target was never reached
+        # So update value as infinite
+        if self.average_wishes_taken == 0:
+            self.average_wishes_taken = float("inf")
+
     def _display(
         self,
     ) -> None:
         """
         Display the output of the simulation
+
+        If verbose then displays more details about the simulation
 
         Returns:
         None
@@ -259,9 +329,21 @@ class Simulation:
         """
         output_string: str = (
             f"The probability of getting {self.target_5_star_count} limited 5-stars in {self.wish_count} "
-            f"wishes is approximately {self.success_probability:.2%} "
-            f"(Calculated using {self.simulation_count} simulations)"
-        )
+            f"wishes is approximately {self.success_probability:.2%}\n"
+        ) 
+
+
+        # If the average number of wishes taken to reach the target is the wish count
+        #  --> likely that the target is usually not reached
+        # Update average value to infinite
+        if self.average_wishes_taken == self.wish_count:
+            self.average_wishes_taken = float("inf")
+        if self.verbose:
+            output_string += str(
+                f"Calculated using {self.simulation_count} simulations\n"
+                f"Took on average {self.average_wishes_taken} wishes to reach the target\n"
+                f"Took on average {self.average_wishes_taken_first} to obtain the first limited 5-star"
+            )
 
         print(output_string)
         return None
@@ -326,6 +408,12 @@ def main() -> None:
         default=1,
         help="Number of 50/50s lost in a row excluding guarantees",
     )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Whether to display more details about the simulation",
+    )
 
     # Parse Arguments
     args = parser.parse_args()
@@ -352,6 +440,7 @@ def main() -> None:
         isGuaranteed=isGuaranteed,
         CR_score=CR_score,
         simulation_count=simulation_count,
+        verbose=args.verbose,
     )
 
     # Run Simulation and Display Results
